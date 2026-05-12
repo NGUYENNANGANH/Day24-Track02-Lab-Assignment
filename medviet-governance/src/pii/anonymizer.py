@@ -15,38 +15,40 @@ class MedVietAnonymizer:
 
     def anonymize_text(self, text: str, strategy: str = "replace") -> str:
         """
-        TODO: Anonymize text với strategy được chọn.
-
-        Strategies:
-        - "mask"    : Nguyen Van A → N****** V** A
-        - "replace" : thay bằng fake data (dùng Faker)
-        - "hash"    : SHA-256 one-way hash
-        - "generalize": chỉ dùng cho tuổi/năm sinh
+        Anonymize text với strategy được chọn.
         """
+        text = str(text)
         results = detect_pii(text, self.analyzer)
         if not results:
             return text
 
-        # TODO: implement operators dict dựa trên strategy
         operators = {}
 
         if strategy == "replace":
             operators = {
-                "PERSON": OperatorConfig("replace", 
-                          {"new_value": fake.name()}),
-                "EMAIL_ADDRESS": OperatorConfig("replace", 
-                                 {"new_value": ___}),   # TODO: fake email
-                "VN_CCCD": OperatorConfig("replace", 
-                           {"new_value": ___}),          # TODO: fake CCCD
-                "VN_PHONE": OperatorConfig("replace", 
-                            {"new_value": ___}),         # TODO: fake phone
+                "PERSON": OperatorConfig("replace", {"new_value": fake.name()}),
+                "EMAIL_ADDRESS": OperatorConfig("replace", {"new_value": fake.email()}),
+                "VN_CCCD": OperatorConfig("replace", {"new_value": fake.numerify("############")}),
+                "VN_PHONE": OperatorConfig("replace", {"new_value": fake.numerify("09########")}),
             }
         elif strategy == "mask":
-            # TODO: implement masking
-            pass
+            mask_config = OperatorConfig("mask", {
+                "type": "mask", "masking_char": "*", "chars_to_mask": 100, "from_end": False
+            })
+            operators = {
+                "PERSON": mask_config,
+                "EMAIL_ADDRESS": mask_config,
+                "VN_CCCD": mask_config,
+                "VN_PHONE": mask_config
+            }
         elif strategy == "hash":
-            # TODO: implement hashing dùng sha256
-            pass
+            hash_config = OperatorConfig("hash", {"hash_type": "sha256"})
+            operators = {
+                "PERSON": hash_config,
+                "EMAIL_ADDRESS": hash_config,
+                "VN_CCCD": hash_config,
+                "VN_PHONE": hash_config
+            }
 
         anonymized = self.anonymizer.anonymize(
             text=text,
@@ -57,33 +59,33 @@ class MedVietAnonymizer:
 
     def anonymize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        TODO: Anonymize toàn bộ DataFrame.
-        - Cột text (ho_ten, dia_chi, email): dùng anonymize_text()
-        - Cột cccd, so_dien_thoai: replace trực tiếp bằng fake data
-        - Cột benh, ket_qua_xet_nghiem: GIỮ NGUYÊN (cần cho model training)
-        - Cột patient_id: GIỮ NGUYÊN (pseudonym đã đủ an toàn)
+        Anonymize toàn bộ DataFrame.
         """
         df_anon = df.copy()
 
-        # TODO: Xử lý từng cột PII
-        # Gợi ý: dùng df.apply() hoặc list comprehension
+        text_cols = ["ho_ten", "dia_chi", "email"]
+        for col in text_cols:
+            if col in df_anon.columns:
+                df_anon[col] = df_anon[col].apply(lambda x: self.anonymize_text(x, strategy="replace"))
+        
+        if "cccd" in df_anon.columns:
+            df_anon["cccd"] = [fake.numerify("############") for _ in range(len(df_anon))]
+            
+        if "so_dien_thoai" in df_anon.columns:
+            df_anon["so_dien_thoai"] = [fake.numerify("09########") for _ in range(len(df_anon))]
 
         return df_anon
 
-    def calculate_detection_rate(self, 
-                                  original_df: pd.DataFrame,
-                                  pii_columns: list) -> float:
+    def calculate_detection_rate(self, original_df: pd.DataFrame, pii_columns: list) -> float:
         """
-        TODO: Tính % PII được detect thành công.
-        Mục tiêu: > 95%
-
-        Logic: với mỗi ô trong pii_columns,
-               kiểm tra xem detect_pii() có tìm thấy ít nhất 1 entity không.
+        Tính % PII được detect thành công.
         """
         total = 0
         detected = 0
 
         for col in pii_columns:
+            if col not in original_df.columns:
+                continue
             for value in original_df[col].astype(str):
                 total += 1
                 results = detect_pii(value, self.analyzer)

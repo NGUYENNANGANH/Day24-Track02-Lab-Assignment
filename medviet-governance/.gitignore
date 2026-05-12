@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+*.zip
+data/raw/*.csv
+reports/
+.vault_key
