@@ -3,5 +3,4 @@ __pycache__/
 *.pyo
 *.zip
 data/raw/*.csv
-reports/
 .vault_key
